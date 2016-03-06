@@ -1,10 +1,14 @@
-function [rpeaks] = qrs_detect(signal, tstamps, fs, tol, scale, win_size)
+% expected peaks
+% coalescing peaks
+
+function [rpeaks, miss_count] = qrs_detect(signal, tstamps, fs, vtol, ttol, vscale, win_size, miss_alarm)
 
 % signal: 
 % tstamps:
 % fs:
-% tol : (millivolts)
-% scale: 
+% vtol : tolerance allowed to help differentiate R peaks from other peaks (millivolts)
+% ttol : tolerance allowed before considering a beat missed (milliseconds)
+% vscale: 
 % win_size : (milliseconds)
 
 if size(signal, 1) > size(signal,2)
@@ -12,12 +16,15 @@ if size(signal, 1) > size(signal,2)
 	tstamps = tstamps';
 end
 
-window = signal(1:round(fs * win_size / 1000));
+win_len = max(3, round(fs * win_size / 1000));
+window = signal(1:win_len);
 maxs = -inf(2, 3);
 mins = inf(2, 3);
 % preallocate for 2 beats per second
 rpeaks = zeros(2, round(tstamps(end)) * 2);
 rcount = 0;
+
+ttol = ttol / 1000;
 
 close all;
 figure; hold on;
@@ -29,6 +36,10 @@ midmin = round(length(maxs)/2);
 
 found_min = 1;
 found_max = 0;
+
+expected_peak = [0; 0];
+miss_count = 0;
+running_miss = 0;
 
 for ii = length(window):length(signal)
 	window = shift(window, signal(ii));
@@ -61,10 +72,36 @@ for ii = length(window):length(signal)
 				%rcurdif = curmax - nextmin;
 				prevdif = prevmax - prevmin;
 				nextdif = nextmax - nextmin;
-				if curdif >= tol && all(curdif >= scale * [prevdif, nextdif])
-				%if curdif >= tol && lcurdif >= scale * prevdif && rcurdif >= scale * nextdif
+				if curdif >= vtol && all(curdif >= vscale * [prevdif, nextdif])
+				%if curdif >= vtol && lcurdif >= vscale * prevdif && rcurdif >= vscale * nextdif
 					rcount = rcount + 1;
-					rpeaks(:, rcount) = maxs(:, midmax);
+					new_peak = maxs(:, midmax);
+					rpeaks(:, rcount) = new_peak;
+					if rcount > 1
+						if rcount > 2
+							new_time = new_peak(2, 1);
+							expected_time = expected_peak(2, 1);
+							tdif = new_time - expected_time;
+							if abs(tdif) >= ttol
+								if tdif > 0
+									fprintf('Late beat ');
+								else
+									fprintf('Early beat ');
+								end
+								fprintf('at %f, expected %f\n', new_time, expected_time);
+								miss_count = miss_count + 1;
+								running_miss = running_miss + 1;
+								if running_miss >= miss_alarm
+									fprintf('ALARM!!!\n');
+								end
+								plot(expected_time, expected_peak(1, 1), 'k*');
+							end
+						end
+						avg_volt = mean(rpeaks(1, 1:rcount));
+						avg_diff = mean(diff(rpeaks(2, 1:rcount)));
+						expected_peak = [avg_volt; avg_diff + rpeaks(2, rcount)];
+						plot(expected_peak(2), expected_peak(1), 'm*');
+					end
 				end
 			end
 
@@ -88,7 +125,6 @@ end
 if rcount > 0
 	rpeaks = rpeaks(:, 1:rcount);
 	plot(rpeaks(2, :), rpeaks(1, :), 'ro');
-	disp(rcount);
 else
 	rpeaks = [];
 end

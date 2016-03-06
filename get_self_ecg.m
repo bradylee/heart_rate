@@ -16,5 +16,5 @@ y = filter(b, 1, signal);
 plot(tstamps, y);
 
 %qrs_detect(signal, tstamps, 800, 0.03, 1.5, 10);
-rpeaks = qrs_detect(y, tstamps, 800, 0.02, 1.5, 10);
+[rpeaks, miss_count] = qrs_detect(y, tstamps, 800, 0.02, 100, 1.5, 10, 2);
 disp(peaks_to_bpm(rpeaks));
