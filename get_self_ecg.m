@@ -1,6 +1,5 @@
+clear;
 close all;
-figure;
-hold on;
 
 datafile;
 fs = 8000;
@@ -13,8 +12,9 @@ wn = (2/fs) * fc;
 %b = fir1(20, wn, 'low', kaiser(21,3));
 b = fir1(20, wn);
 y = filter(b, 1, signal);
-plot(tstamps, y);
+%plot(tstamps, y);
 
 %qrs_detect(signal, tstamps, 800, 0.03, 1.5, 10);
-[rpeaks, miss_count] = qrs_detect(y, tstamps, 800, 20, 100, 1.5, 10, 2);
+rpeaks = qrs_detect(y, tstamps, 800, 20, 200, 1.5, 10, 2, 'me');
+
 disp(peaks_to_bpm(rpeaks));

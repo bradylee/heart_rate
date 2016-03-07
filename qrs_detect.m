@@ -1,5 +1,5 @@
 % TO DO:
-% prev expected buffer
+% prev expected buffer - allow adding and removing to check back farther
 
 function [rpeaks, late_beats, early_beats, removed_beats] = qrs_detect(signal, tstamps, fs, vtol, ttol, vscale, win_size, unexpected_alarm, patient)
 
@@ -12,7 +12,7 @@ function [rpeaks, late_beats, early_beats, removed_beats] = qrs_detect(signal, t
 % win_size : (milliseconds)
 
 % must be greater than 3 for late squashing
-PEAK_BUFF_SIZE = 5;
+PEAK_BUFF_SIZE = 3;
 
 if size(signal, 1) > size(signal,2)
   signal = signal';
@@ -22,9 +22,7 @@ end
 win_len = max(3, round(fs * win_size / 1000));
 window = signal(1:win_len);
 maxs = -inf(2, PEAK_BUFF_SIZE);
-maxs_save = maxs;
 mins = inf(2, PEAK_BUFF_SIZE);
-mins_save = mins;
 % preallocate for 2 beats per second
 rpeaks = zeros(2, round(tstamps(end)) * 2);
 rcount = 0;
@@ -44,11 +42,8 @@ found_max = 0;
 
 expected_peak = [0; 0];
 prev_expected = [0; 0];
-possible_peak = [0; 0];
 prev_possible = [0; 0];
 
-avg_volt = 0;
-avg_diff = 0;
 rindex = 1;
 curr_count = 0;
 
@@ -67,7 +62,7 @@ unexpected_running = 0;
 unexpected_flags = [0, 0];
 
 early_event = 0;
-late_event = 0;
+%late_event = 0;
 
 for ii = length(window):length(signal)
   window = shift(window, signal(ii));
@@ -132,15 +127,13 @@ for ii = length(window):length(signal)
                   fprintf('Discarded beat at %f\n', removed(2, 1));
                   plot(expected_peak(2), expected_peak(1), 'kx', 'markers', 11);
                   %early_beats = early_beats - 1;
-                  start = rcount-5;
-                  term = rcount;
                   rcount = rcount - 1;
                   rpeaks(:, rcount) = new_peak;
                   unexpected_flags = shift(unexpected_flags, 0);
                 elseif abs(texp) > ttol
                   % missed or unexpected beat
                   early_event = 0;
-                  late_event = 0;
+                  %late_event = 0;
 									added = 0;
                   if texp > 0
                     late_count = late_count + 1;
@@ -158,7 +151,7 @@ for ii = length(window):length(signal)
 											plot(new_peak(2), new_peak(1), 'ko', 'markers', 11);
 											added = 1;
 										else
-											late_event = 1;
+											%late_event = 1;
 											unexpected_flags = shift(unexpected_flags, 2);
 										end
                     
@@ -186,8 +179,8 @@ for ii = length(window):length(signal)
                     fprintf('Unexpected change in beating!\n');
                     curr_count = 1;
                     rindex = rcount;
-                    avg_volt = 0;
-                    avg_diff = 0;
+                    %avg_volt = 0;
+                    %avg_diff = 0;
                     unexpected_running = 0;
                     expecting = 0;
                   end
@@ -205,15 +198,13 @@ for ii = length(window):length(signal)
               else
                 curr_count = 1;
                 rindex = rcount;
-                avg_volt = 0;
-                avg_diff = 0;
+                %avg_volt = 0;
+                %avg_diff = 0;
                 unexpected_running = 0;
                 %prev_expected = [0; 0];
               end
             end
           end
-          maxs_save = maxs;
-          mins_save = mins;
           prev_possible = possible_peak;
         end
       end
