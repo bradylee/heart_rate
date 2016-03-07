@@ -40,6 +40,10 @@ found_max = 0;
 expected_peak = [0; 0];
 miss_count = 0;
 running_miss = 0;
+avg_volt = 0;
+avg_diff = 0;
+rindex = 1;
+curr_count = 0;
 
 for ii = length(window):length(signal)
 	window = shift(window, signal(ii));
@@ -65,24 +69,32 @@ for ii = length(window):length(signal)
 			nextmax = maxs(1, midmax + 1);
 			prevmin = mins(1, midmin);
 			nextmin = mins(1, midmin + 1);
+
 			if ~isinf(curmax) && all(curmax >= maxs(1, :)) 
 				% is candidate for r peak
 				curdif = (2 * curmax - prevmin - nextmin) / 2;
-				%lcurdif = curmax - prevmin;
-				%rcurdif = curmax - nextmin;
 				prevdif = prevmax - prevmin;
 				nextdif = nextmax - nextmin;
+
 				if curdif >= vtol && all(curdif >= vscale * [prevdif, nextdif])
-				%if curdif >= vtol && lcurdif >= vscale * prevdif && rcurdif >= vscale * nextdif
 					rcount = rcount + 1;
+					curr_count = curr_count + 1;
 					new_peak = maxs(:, midmax);
 					rpeaks(:, rcount) = new_peak;
+					
 					if rcount > 1
-						if rcount > 2
+						expecting = 1;
+						if curr_count == 2
+							% start of new consistent beat streak
+							avg_volt = mean(rpeaks(1, rcount-1:rcount));
+							avg_diff = rpeaks(2, rcount) - rpeaks(2, rcount - 1);
+						else
 							new_time = new_peak(2, 1);
 							expected_time = expected_peak(2, 1);
 							tdif = new_time - expected_time;
+
 							if abs(tdif) >= ttol
+								% missed or unexpected beat
 								if tdif > 0
 									fprintf('Late beat ');
 								else
@@ -91,20 +103,29 @@ for ii = length(window):length(signal)
 								fprintf('at %f, expected %f\n', new_time, expected_time);
 								miss_count = miss_count + 1;
 								running_miss = running_miss + 1;
+
 								if running_miss >= miss_alarm
-									fprintf('ALARM!!!\n');
+									% reset streak, assuming new heart rate (need to clear averages)
+									fprintf('Unexpected change in beating!\n');
+									curr_count = 1;
+									avg_volt = 0;
+									avg_diff = 0;
+									running_miss = 0;
+									expecting = 0;
 								end
-								plot(expected_time, expected_peak(1, 1), 'k*');
+							else
+								% adjust averages with new value
+								prev_count = curr_count - 1;
+								avg_volt = (avg_volt * prev_count + new_peak(1, 1)) / curr_count;
+								avg_diff = (avg_diff * prev_count + new_peak(2, 1)) / curr_count;
+								running_miss = 0;
 							end
 						end
-						avg_volt = mean(rpeaks(1, 1:rcount));
-						avg_diff = mean(diff(rpeaks(2, 1:rcount)));
-						expected_peak = [avg_volt; avg_diff + rpeaks(2, rcount)];
-						plot(expected_peak(2), expected_peak(1), 'm*');
+						if expecting
+							expected_peak = [avg_volt; avg_diff + rpeaks(2, rcount)];
+							plot(expected_peak(2), expected_peak(1), 'm*');
+						end
 					end
-				end
-			end
-
 		elseif point(1) > maxs(1, 1)
 			% replace existing max with greater one
 			maxs(:, 1) = point;
@@ -129,6 +150,4 @@ else
 	rpeaks = [];
 end
 
-%plot(maxs(2, :), maxs(1, :), 'go');
-%plot(mins(2, :), mins(1, :), 'yo');
 end
