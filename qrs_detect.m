@@ -1,7 +1,7 @@
 % TO DO:
 % double checking misses 
 
-function [rpeaks, unexpected_beats] = qrs_detect(signal, tstamps, fs, vtol, ttol, vscale, win_size, unexpected_alarm, patient)
+function [rpeaks, late_beats, early_beats, discarded_beats] = qrs_detect(signal, tstamps, fs, vtol, ttol, vscale, win_size, unexpected_alarm, patient)
 
 % signal: 
 % tstamps:
@@ -38,6 +38,7 @@ found_min = 1;
 found_max = 0;
 
 expected_peak = [0; 0];
+prev_expected = [0; 0];
 avg_volt = 0;
 avg_diff = 0;
 rindex = 1;
@@ -51,7 +52,11 @@ early_count = 0;
 late_count = 0;
 discarded_count = 0;
 unexpected_count = 0;
-running_unexpected = 0;
+unexpected_running = 0;
+unexpected_flags = [0, 0];
+
+early_event = 0;
+late_event = 0;
 
 for ii = length(window):length(signal)
 	window = shift(window, signal(ii));
@@ -96,48 +101,84 @@ for ii = length(window):length(signal)
 					
 					if rcount > 1
 						expecting = 1;
-						avg_volt = mean(rpeaks(1, rindex:rcount));
-						avg_diff = mean(diff(rpeaks(2, rindex:rcount)));
-
 						if curr_count > 2
 							new_time = new_peak(2, 1);
 							expected_time = expected_peak(2, 1);
-							tdif = new_time - expected_time;
+							prev_time = prev_expected(2, 1);
+							texp = new_time - expected_time;
+							tprev = new_time - prev_time;
 
-							if abs(tdif) >= ttol
+							if early_event && abs(tprev) <= ttol %&& 0
+								% beat is previously expected beat
+								% discard early beat and update peaks
+								early_event = 0;
+								discarded_count = discarded_count + 1;
+								discarded = early_beats(:, early_count);
+								discarded_beats(:, discarded_count) = discarded; 
+								fprintf('Discarded beat %f\n', discarded(2, 1)); 
+								plot(expected_peak(2), expected_peak(1), 'kx', 'markers', 11);
+								%early_beats = early_beats - 1;
+								start = rcount-5;
+								term = rcount;
+								disp(rpeaks(:, start:term));
+								rcount = rcount - 1;
+								rpeaks(:, rcount) = new_peak;
+								disp(rpeaks(:, start:term));
+								unexpected_flags = shift(unexpected_flags, 0);
+							elseif abs(texp) > ttol
 								% missed or unexpected beat
-								if tdif > 0
+								early_event = 0;
+								late_event = 0;
+								if texp > 0
 									late_count = late_count + 1;
 									late_beats(:, late_count) = new_peak;
 									fprintf('Late beat ');
-									%plot(new_peak(2), new_peak(1), 'k*');
+									late_event = 1;
+									unexpected_flags = shift(unexpected_flags, 2);
 								else
 									early_count = early_count + 1;
 									early_beats(:, early_count) = new_peak;
 									fprintf('Early beat ');
-									%plot(new_peak(2), new_peak(1), 'c*');
+									early_event = 1;
+									unexpected_flags = shift(unexpected_flags, 1);
 								end
 								fprintf('at %f, expected %f\n', new_time, expected_time);
 								unexpected_count = unexpected_count + 1;
-								running_unexpected = running_unexpected + 1;
+								if all(unexpected_flags(1) == unexpected_flags)
+									% same kind of unexpected beat in a row
+									unexpected_running = unexpected_running + 1;
+								else
+									unexpected_running = 0;
+								end
 
-								if running_unexpected >= unexpected_alarm
+								if unexpected_running >= unexpected_alarm
 									% reset streak, assuming new heart rate (need to clear averages)
 									fprintf('Unexpected change in beating!\n');
 									curr_count = 1;
 									rindex = rcount;
 									avg_volt = 0;
 									avg_diff = 0;
-									running_unexpected = 0;
+									unexpected_running = 0;
 									expecting = 0;
 								end
 							else
-								running_unexpected = 0;
+								unexpected_running = 0;
+								unexpected_flags = shift(unexpected_flags, 0);
 							end
 						end
+						avg_volt = mean(rpeaks(1, rindex:rcount));
+						avg_diff = mean(diff(rpeaks(2, rindex:rcount)));
 						if expecting
+							prev_expected = expected_peak;
 							expected_peak = [avg_volt; avg_diff + rpeaks(2, rcount)];
 							plot(expected_peak(2), expected_peak(1), 'm*');
+						else
+							curr_count = 1;
+							rindex = rcount;
+							avg_volt = 0;
+							avg_diff = 0;
+							unexpected_running = 0;
+							prev_expected = [0; 0];
 						end
 					end
 				end
@@ -162,7 +203,6 @@ for ii = length(window):length(signal)
 	end
 end
 
-unexpected_beats = [early_beats, missed_beats];
 
 if rcount > 0
 	rpeaks = rpeaks(:, 1:rcount);
@@ -174,12 +214,17 @@ if rcount > 0
 	end
 	if late_count > 0
 		late_beats = late_beats(:, 1:late_count);
-		plot(late_beats(2, :), late_beats(1, :), 'k*');
+		plot(late_beats(2, :), late_beats(1, :), '*', 'Color', [1, 0.5, 0.5]);
 	end
-
+	if discarded_count > 0
+		discarded_beats = discarded_beats(:, 1:discarded_count);
+		plot(discarded_beats(2, :), discarded_beats(1, :), 'kx', 'markers', 11);
+	end
 else
 	rpeaks = [];
+	unexpected_beats = [];
 end
+
 
 xlabel('Time (s)');
 ylabel('Voltage (mv)');
