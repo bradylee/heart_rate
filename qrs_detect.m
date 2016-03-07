@@ -1,7 +1,7 @@
-% expected peaks
-% coalescing peaks
+% TO DO:
+% double checking misses 
 
-function [rpeaks, miss_count] = qrs_detect(signal, tstamps, fs, vtol, ttol, vscale, win_size, miss_alarm)
+function [rpeaks, unexpected_beats] = qrs_detect(signal, tstamps, fs, vtol, ttol, vscale, win_size, unexpected_alarm, patient)
 
 % signal: 
 % tstamps:
@@ -26,7 +26,7 @@ rcount = 0;
 
 ttol = ttol / 1000;
 
-close all;
+%close all;
 figure; hold on;
 plot(tstamps, signal);
 
@@ -38,12 +38,20 @@ found_min = 1;
 found_max = 0;
 
 expected_peak = [0; 0];
-miss_count = 0;
-running_miss = 0;
 avg_volt = 0;
 avg_diff = 0;
 rindex = 1;
 curr_count = 0;
+
+early_beats = zeros(2, 10);
+late_beats = zeros(2, 10);
+discarded_beats = zeros(2, 10);
+
+early_count = 0;
+late_count = 0;
+discarded_count = 0;
+unexpected_count = 0;
+running_unexpected = 0;
 
 for ii = length(window):length(signal)
 	window = shift(window, signal(ii));
@@ -56,8 +64,11 @@ for ii = length(window):length(signal)
 
 	% check for mins and maxes
 	% force alternation but check for improved and replace as needed
+
 	if lfwd && rrev
+		% candidate maximum
 		if found_min
+			% valid maximum
 			[maxs, out] = shift(maxs, point);
 			plot(out(2), out(1), 'go');
 			found_min = 0;
@@ -71,12 +82,13 @@ for ii = length(window):length(signal)
 			nextmin = mins(1, midmin + 1);
 
 			if ~isinf(curmax) && all(curmax >= maxs(1, :)) 
-				% is candidate for r peak
+				% is candidate for R peak
 				curdif = (2 * curmax - prevmin - nextmin) / 2;
 				prevdif = prevmax - prevmin;
 				nextdif = nextmax - nextmin;
 
 				if curdif >= vtol && all(curdif >= vscale * [prevdif, nextdif])
+					% is considered an R peak
 					rcount = rcount + 1;
 					curr_count = curr_count + 1;
 					new_peak = maxs(:, midmax);
@@ -84,11 +96,10 @@ for ii = length(window):length(signal)
 					
 					if rcount > 1
 						expecting = 1;
-						if curr_count == 2
-							% start of new consistent beat streak
-							avg_volt = mean(rpeaks(1, rcount-1:rcount));
-							avg_diff = rpeaks(2, rcount) - rpeaks(2, rcount - 1);
-						else
+						avg_volt = mean(rpeaks(1, rindex:rcount));
+						avg_diff = mean(diff(rpeaks(2, rindex:rcount)));
+
+						if curr_count > 2
 							new_time = new_peak(2, 1);
 							expected_time = expected_peak(2, 1);
 							tdif = new_time - expected_time;
@@ -96,29 +107,32 @@ for ii = length(window):length(signal)
 							if abs(tdif) >= ttol
 								% missed or unexpected beat
 								if tdif > 0
+									late_count = late_count + 1;
+									late_beats(:, late_count) = new_peak;
 									fprintf('Late beat ');
+									%plot(new_peak(2), new_peak(1), 'k*');
 								else
+									early_count = early_count + 1;
+									early_beats(:, early_count) = new_peak;
 									fprintf('Early beat ');
+									%plot(new_peak(2), new_peak(1), 'c*');
 								end
 								fprintf('at %f, expected %f\n', new_time, expected_time);
-								miss_count = miss_count + 1;
-								running_miss = running_miss + 1;
+								unexpected_count = unexpected_count + 1;
+								running_unexpected = running_unexpected + 1;
 
-								if running_miss >= miss_alarm
+								if running_unexpected >= unexpected_alarm
 									% reset streak, assuming new heart rate (need to clear averages)
 									fprintf('Unexpected change in beating!\n');
 									curr_count = 1;
+									rindex = rcount;
 									avg_volt = 0;
 									avg_diff = 0;
-									running_miss = 0;
+									running_unexpected = 0;
 									expecting = 0;
 								end
 							else
-								% adjust averages with new value
-								prev_count = curr_count - 1;
-								avg_volt = (avg_volt * prev_count + new_peak(1, 1)) / curr_count;
-								avg_diff = (avg_diff * prev_count + new_peak(2, 1)) / curr_count;
-								running_miss = 0;
+								running_unexpected = 0;
 							end
 						end
 						if expecting
@@ -126,12 +140,17 @@ for ii = length(window):length(signal)
 							plot(expected_peak(2), expected_peak(1), 'm*');
 						end
 					end
+				end
+			end
+
 		elseif point(1) > maxs(1, 1)
 			% replace existing max with greater one
 			maxs(:, 1) = point;
 		end
 	elseif lrev && rfwd
+		% candidate minimum
 		if found_max
+			% valid minimum
 			[mins, out] = shift(mins, point);
 			plot(out(2), out(1), 'yo');
 			found_min = 1;
@@ -143,11 +162,28 @@ for ii = length(window):length(signal)
 	end
 end
 
+unexpected_beats = [early_beats, missed_beats];
+
 if rcount > 0
 	rpeaks = rpeaks(:, 1:rcount);
 	plot(rpeaks(2, :), rpeaks(1, :), 'ro');
+
+	if early_count > 0
+		early_beats = early_beats(:, 1:early_count);
+		plot(early_beats(2, :), early_beats(1, :), 'c*');
+	end
+	if late_count > 0
+		late_beats = late_beats(:, 1:late_count);
+		plot(late_beats(2, :), late_beats(1, :), 'k*');
+	end
+
 else
 	rpeaks = [];
 end
+
+xlabel('Time (s)');
+ylabel('Voltage (mv)');
+t = sprintf('Electrocardiogram Analysis %s', patient);
+title(t);
 
 end
