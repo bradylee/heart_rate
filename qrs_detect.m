@@ -28,8 +28,7 @@ figure; hold on;
 plot(tstamps, signal);
 
 % must be >= 3 samples to find peaks
-%win_len = max(3, round(fs * win_size / 1000));
-win_len = 5;
+win_len = max(3, round(fs * win_size / 1000));
 window = signal(1:win_len);
 
 maxs = -inf(2, PEAK_BUFF_SIZE);
@@ -39,7 +38,7 @@ midwin = round(length(window)/2);
 midmax = round(length(maxs)/2);
 midmin = round(length(maxs)/2);
 
-% preallocate for 2 beats per second
+% preallocate for 2 beats per second, faster execution
 rpeaks = zeros(2, round(tstamps(end)) * 2);
 rcount = 0;
 
@@ -54,9 +53,7 @@ prev_expected_peak = [0; 0];
 prev_possible_peak = [0; 0];
 
 % track unexpected beats (early, late)
-unexpected_flags = zeros(alarm_count);
-%unexpected_count = 0;
-%unexpected_running = 0;
+unexpected_flags = zeros(1, alarm_count);
 
 UNEXPECTED_LENGTH = 10;
 early_beats = zeros(2, UNEXPECTED_LENGTH);
@@ -130,6 +127,14 @@ for ii = length(window):length(signal)
               tdiff_expected = new_time - expected_time;
               tdiff_prev = new_time - prev_time;
               
+              if ~early_event && unexpected_flags(1) && all(unexpected_flags(1) == unexpected_flags)
+                % too many unexpected beats, actual rate must have changed
+                fprintf('Change in beating!\n');
+                curr_count = alarm_count;
+                rindex = rcount - curr_count + 1;
+                unexpected_flags = zeros(size(unexpected_flags));
+              end
+              
               % ensure flag only lasts one iteration regardless of path
               ee = early_event;
               early_event = 0;
@@ -144,7 +149,7 @@ for ii = length(window):length(signal)
                 rpeaks(:, rcount) = new_peak;
                 unexpected_flags = shift(unexpected_flags, 0);
                 early_event = 0;
-                fprintf('Removed beat at %f\n', removed_beat(2, 1));
+                fprintf('Removed beat at %8.2f\n', removed_beat(2, 1));
                 plot(expected_peak(2), expected_peak(1), 'kx', 'markers', 11);
               elseif abs(tdiff_expected) > ttol
                 % unexpected beat
@@ -154,9 +159,8 @@ for ii = length(window):length(signal)
                   late_beats(:, late_count) = new_peak;
                   prev_possible_time = prev_possible_peak(2, 1);
                   tdiff_possible = prev_possible_time - expected_time;
-                  fprintf('Late beat at %f, expected %f\n', new_time, expected_time);
+                  fprintf('Late beat at %8.2f, expected %8.2f\n', new_time, expected_time);
                   
-                  unexpected_flags = shift(unexpected_flags, 2);
                   if abs(tdiff_possible) <= ttol
                     % add beat that was skipped
                     added_count = added_count + 1;
@@ -165,7 +169,11 @@ for ii = length(window):length(signal)
                     rpeaks(:, rcount) = prev_possible_peak;
                     rcount = rcount + 1;
                     plot(new_peak(2), new_peak(1), 'ko', 'markers', 11);
-                    fprintf('Added beat at %f\n', added_beats(2, added_count));
+                    fprintf('Added beat at %8.2f\n', added_beats(2, added_count));
+                    unexpected_flags = shift(unexpected_flags, 0);
+                  else
+                    % actual late beat
+                    unexpected_flags = shift(unexpected_flags, 2);
                   end
                   
                 else
@@ -174,29 +182,19 @@ for ii = length(window):length(signal)
                   early_count = early_count + 1;
                   early_beats(:, early_count) = new_peak;
                   unexpected_flags = shift(unexpected_flags, 1);
-                  fprintf('Early beat at %f, expected %f\n', new_time, expected_time);
+                  fprintf('Early beat at %8.2f, expected %8.2f\n', new_time, expected_time);
                   plot(expected_peak(2, :), expected_peak(1, :), 'co', 'markers', 11);
                 end
                 
                 %{
-								if ~unexpected_running && unexpected_flags(1)
-									unexpected_running = 1;
-								elseif unexpected_flags(1) == unexpected_flags(2)
-									% same kind of unexpected beat in a row
-									unexpected_running = unexpected_running + 1;
-								else
-									unexpected_running = 0;
-								end
-								
-								if unexpected_running >= alarm_count
-                %}
-                
-                if all(unexpected_flags(1) == unexpected_flags)
+                if unexpected_flags(1) && all(unexpected_flags(1) == unexpected_flags)
                   % too many unexpected beats, actual rate must have changed
                   fprintf('Change in beating!\n');
                   curr_count = alarm_count;
                   rindex = rcount - curr_count + 1;
+                  unexpected_flags = zeros(size(unexpected_flags));
                 end
+                %}
                 
               else
                 % expected beat

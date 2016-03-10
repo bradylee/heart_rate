@@ -3,16 +3,16 @@ close all;
 vtol = 0.6;
 ttol = 150; %250;
 vscale = 1.5;
-win_size = 10;
+win_size = 15;
 alarm_count = 2;
 patient = 'mitdb/104';
 
 %%{
-[tstamps, signal, fs] = rdsamp(patient, 1, 10000); %100000);
+[tstamps, signal, fs] = rdsamp(patient, 1, 100000);
 signal = signal';
 tstamps = tstamps' * 1000;
 
-%{
+%%{
 range = [125, 175];
 index = round(range * fs);
 signal = signal(index(1):index(2));
