@@ -1,4 +1,4 @@
-function [ avnn, sdnn, sdann, sdnnidx, rmssd, pnn50 ] = hrv( rpeaks, partition )
+function [ avnn, sdnn, sdann, sdnnidx, rmssd, pnn50 ] = hrv( rpeaks, partition, early, late, removed, added )
 %%% https://physionet.org/tutorials/hrv-toolkit/
 % rpeaks: R to R intervals to analyze
 % * row 1 should be voltage values in millivolts
@@ -29,5 +29,12 @@ function [ avnn, sdnn, sdann, sdnnidx, rmssd, pnn50 ] = hrv( rpeaks, partition )
   
   % percentage of diffs between adjacent NN greater than 50 ms
   pnn50 = sum(diff(intervals) > 0.05) / length(intervals);
+
+
+
+
+
+	% power statistics
+	% error and correction statistics
   
 end

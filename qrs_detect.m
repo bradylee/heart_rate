@@ -1,5 +1,7 @@
 % TO DO:
-% prev expected buffer - allow adding and removing to check back farther
+% * fix unexpected buffer
+% * reorganize to smaller functions
+% * prev expected buffer - allow adding and removing to check back farther
 
 function [rpeaks, late_beats, early_beats, removed_beats] = qrs_detect(signal, tstamps, fs, vtol, ttol, vscale, win_size, unexpected_alarm, patient)
 
