@@ -3,15 +3,17 @@
 % * reorganize to smaller functions
 % * prev expected buffer - allow adding and removing to check back farther
 
-function [rpeaks, late_beats, early_beats, removed_beats] = qrs_detect(signal, tstamps, fs, vtol, ttol, vscale, win_size, unexpected_alarm, patient)
+function [rpeaks, late_beats, early_beats, removed_beats] = qrs_detect(signal, tstamps, fs, vtol, ttol, vscale, win_size, alarm_count, patient)
 
-% signal 		: array of samples (millivolts)
-% tstamps 	: timestamps corresponding to samples (milliseconds)
-% fs 				: sampling frequency (hertz)
-% vtol 			: tolerance allowed to help differentiate R peaks from other peaks (millivolts)
-% ttol 			: tolerance allowed before considering a beat missed (milliseconds)
-% vscale 		: lower threshold on peak scale to separate local max from R peak (ratio) 
-% win_size	: subset of signal used to find local max and min (milliseconds)
+% signal			: array of samples (millivolts)
+% tstamps			: timestamps corresponding to samples (milliseconds)
+% fs					: sampling frequency (hertz)
+% vtol				: tolerance allowed to help differentiate R peaks from other peaks (millivolts)
+% ttol				: tolerance allowed before considering a beat missed (milliseconds)
+% vscale			: lower threshold on peak scale to separate local max from R peak (ratio) 
+% win_size		: subset of signal used to find local max and min (milliseconds)
+% alarm_count :
+% patient			:
 
 % must be >= 3 for late beat correction 
 PEAK_BUFF_SIZE = 3;
@@ -43,19 +45,23 @@ rcount = 0;
 rindex = 1;
 curr_count = 0;
 
+% must be >= 2 to properly adjust after change in beating
+alarm_count = max(2, alarm_count);
+
 expected_peak = [0; 0];
 prev_expected_peak = [0; 0];
 prev_possible_peak = [0; 0];
 
 % track unexpected beats (early, late)
-unexpected_flags = [0, 0];
-unexpected_count = 0;
-unexpected_running = 0;
+unexpected_flags = zeros(alarm_count);
+%unexpected_count = 0;
+%unexpected_running = 0;
 
-early_beats = zeros(2, 10);
-late_beats = zeros(2, 10);
-removed_beats = zeros(2, 10);
-added_beats = zeros(2, 10);
+UNEXPECTED_LENGTH = 10;
+early_beats = zeros(2, UNEXPECTED_LENGTH);
+late_beats = zeros(2, UNEXPECTED_LENGTH);
+removed_beats = zeros(2, UNEXPECTED_LENGTH);
+added_beats = zeros(2, UNEXPECTED_LENGTH);
 
 early_count = 0;
 late_count = 0;
@@ -65,7 +71,6 @@ added_count = 0;
 found_min = 1;
 found_max = 0;
 early_event = 0;
-%late_event = 0;
 
 for ii = length(window):length(signal)
   window = shift(window, signal(ii));
@@ -115,103 +120,101 @@ for ii = length(window):length(signal)
             rcount = rcount + 1;
             curr_count = curr_count + 1;
             
-            if rcount > 1
-              expecting = 1;
+						if curr_count > 2
+							% check detected value against expectation
+							plot(expected_peak(2), expected_peak(1), 'm*');
+							new_time = new_peak(2, 1);
+							expected_time = expected_peak(2, 1);
+							prev_time = prev_expected_peak(2, 1);
+							tdiff_expected = new_time - expected_time;
+							tdiff_prev = new_time - prev_time;
+							
+							% ensure flag only lasts one iteration regardless of path 
+							ee = early_event;
+							early_event = 0;
 
-              if curr_count > 2
-								% check detected value against expectation
-                new_time = new_peak(2, 1);
-                expected_time = expected_peak(2, 1);
-                prev_time = prev_expected_peak(2, 1);
-                tdiff_expected = new_time - expected_time;
-                tdiff_prev = new_time - prev_time;
-                
-								% ensure flag only lasts one iteration regardless of path 
-								ee = early_event;
+							if ee && abs(tdiff_prev) <= ttol
+								% new beat is previously expected beat
+								% discard early beat and update rpeaks
+								removed_beat = early_beats(:, early_count);
+								removed_beats(:, removed_count) = removed_beat;
+								removed_count = removed_count + 1;
+								rcount = rcount - 1;
+								rpeaks(:, rcount) = new_peak;
+								unexpected_flags = shift(unexpected_flags, 0);
 								early_event = 0;
+								fprintf('Removed beat at %f\n', removed_beat(2, 1));
+								plot(expected_peak(2), expected_peak(1), 'kx', 'markers', 11);
+							elseif abs(tdiff_expected) > ttol
+								% unexpected beat
 
-                if ee && abs(tdiff_prev) <= ttol
-                  % new beat is previously expected beat
-                  % discard early beat and update rpeaks
-                  removed_beat = early_beats(:, early_count);
-                  removed_beats(:, removed_count) = removed_beat;
-                  removed_count = removed_count + 1;
-                  rcount = rcount - 1;
-                  rpeaks(:, rcount) = new_peak;
-                  unexpected_flags = shift(unexpected_flags, 0);
-                  early_event = 0;
-                  fprintf('Removed beat at %f\n', removed_beat(2, 1));
-                  plot(expected_peak(2), expected_peak(1), 'kx', 'markers', 11);
-                elseif abs(tdiff_expected) > ttol
-                  % unexpected beat
-                  unexpected_count = unexpected_count + 1;
+								%unexpected_count = unexpected_count + 1;
 
-                  if tdiff_expected > 0
-										% late beat
-                    late_count = late_count + 1;
-                    late_beats(:, late_count) = new_peak;
-                    prev_possible_time = prev_possible_peak(2, 1);
-										tdiff_possible = prev_possible_time - expected_time;
+								if tdiff_expected > 0
+									% late beat
+									late_count = late_count + 1;
+									late_beats(:, late_count) = new_peak;
+									prev_possible_time = prev_possible_peak(2, 1);
+									tdiff_possible = prev_possible_time - expected_time;
 
-										if abs(tdiff_possible) <= ttol
-											% add beat that was skipped
-											added_count = added_count + 1;
-											added_beats(:, added_count) = prev_possible_peak;
-											rpeaks(:, rcount + 1) = rpeaks(:, rcount);
-											rpeaks(:, rcount) = prev_possible_peak;
-											rcount = rcount + 1;
-											plot(new_peak(2), new_peak(1), 'ko', 'markers', 11);
-											fprintf('Added beat at %f\n', added_beats(2, added_count));
-										else
-											unexpected_flags = shift(unexpected_flags, 2);
-										end
-                    fprintf('Late beat ');
-                    
-                  else
-										% early beat
-                    early_event = 1;
-                    early_count = early_count + 1;
-                    early_beats(:, early_count) = new_peak;
-                    unexpected_flags = shift(unexpected_flags, 1);
-                    fprintf('Early beat ');
-                  end
-                  fprintf('at %f, expected %f\n', new_time, expected_time);
+									if abs(tdiff_possible) <= ttol
+										% add beat that was skipped
+										added_count = added_count + 1;
+										added_beats(:, added_count) = prev_possible_peak;
+										rpeaks(:, rcount + 1) = rpeaks(:, rcount);
+										rpeaks(:, rcount) = prev_possible_peak;
+										rcount = rcount + 1;
+										plot(new_peak(2), new_peak(1), 'ko', 'markers', 11);
+										fprintf('Added beat at %f\n', added_beats(2, added_count));
+									else
+										unexpected_flags = shift(unexpected_flags, 2);
+									end
+									fprintf('Late beat ');
+									
+								else
+									% early beat
+									early_event = 1;
+									early_count = early_count + 1;
+									early_beats(:, early_count) = new_peak;
+									unexpected_flags = shift(unexpected_flags, 1);
+									fprintf('Early beat ');
+								end
+								fprintf('at %f, expected %f\n', new_time, expected_time);
 
-                  if unexpected_flags(1) && all(unexpected_flags(1) == unexpected_flags)
-                    % same kind of unexpected beat in a row
-                    unexpected_running = unexpected_running + 1;
-                  else
-                    unexpected_running = 0;
-                  end
-                  
-                  if unexpected_running >= unexpected_alarm
-                    % too many unexpected beats, actual rate must have changed
-                    fprintf('Change in beating!\n');
-                    curr_count = 1;
-                    rindex = rcount;
-                    unexpected_running = 0;
-                    expecting = 0;
-                  end
+								%{
+								if ~unexpected_running && unexpected_flags(1)
+									unexpected_running = 1;
+								elseif unexpected_flags(1) == unexpected_flags(2)
+									% same kind of unexpected beat in a row
+									unexpected_running = unexpected_running + 1;
+								else
+									unexpected_running = 0;
+								end
+								
+								if unexpected_running >= alarm_count
+								%}
 
-                else
-									% expected beat
-                  unexpected_running = 0;
-                  unexpected_flags = shift(unexpected_flags, 0);
-                end
-							end % end check event type
+								if all(unexpected_flags(1) == unexpected_flags)
+									% too many unexpected beats, actual rate must have changed
+									fprintf('Change in beating!\n');
+									curr_count = alarm_count;
+									rindex = rcount - curr_count + 1;
+									unexpected_running = 0;
+								end
 
-              avg_volt = mean(rpeaks(1, rindex:rcount));
-              avg_diff = mean(diff(rpeaks(2, rindex:rcount)));
+							else
+								% expected beat
+								unexpected_flags = shift(unexpected_flags, 0);
+								%unexpected_running = 0;
+							end
+						end % end check event type
 
-              if expecting
-                prev_expected_peak = expected_peak;
-                expected_peak = [avg_volt; avg_diff + rpeaks(2, rcount)];
-                plot(expected_peak(2), expected_peak(1), 'm*');
-							end 
-
-						end % end check current count
-					end % end check R count
+					end % end check current count
           prev_possible_peak = possible_peak;
+					avg_volt = mean(rpeaks(1, rindex:rcount));
+					avg_diff = mean(diff(rpeaks(2, rindex:rcount)));
+					prev_expected_peak = expected_peak;
+					expected_peak = [avg_volt; avg_diff + rpeaks(2, rcount)];
 				end % end check definite R peak
 			end % end check likely R peak
       
@@ -234,7 +237,6 @@ for ii = length(window):length(signal)
     end
   end
 end
-
 
 if rcount > 0
 	% adjust array and plot
