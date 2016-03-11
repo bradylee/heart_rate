@@ -23,18 +23,9 @@ if size(signal, 1) > size(signal,2)
   tstamps = tstamps';
 end
 
-samples = 1:length(tstamps);
-% adjust ttol to samples
-ttol = max(1, ttol / 1000 * fs);
-
 close all;
 figure; hold on;
-%plot(tstamps, signal);
-plot(samples, signal);
-xlabel('Sample');
-ylabel('Voltage (mv)');
-t = sprintf('Electrocardiogram Analysis %s', patient);
-title(t);
+plot(tstamps, signal);
 
 % must be >= 3 samples to find peaks
 win_len = max(3, round(fs * win_size / 1000));
@@ -81,8 +72,7 @@ early_event = 0;
 
 for ii = length(window):length(signal)
   window = shift(window, signal(ii));
-  %point = [window(midwin), tstamps(ii - midwin)];
-  point = [window(midwin), samples(ii - midwin)];
+  point = [window(midwin), tstamps(ii - midwin)];
   
   left = window(1:midwin);
   right = window(midwin:end);
@@ -159,7 +149,7 @@ for ii = length(window):length(signal)
                 rpeaks(:, rcount) = new_peak;
                 unexpected_flags = shift(unexpected_flags, 0);
                 early_event = 0;
-                fprintf('Removed beat at %d\n', removed_beat(2, 1));
+                fprintf('Removed beat at %8.2f\n', removed_beat(2, 1));
                 plot(expected_peak(2), expected_peak(1), 'kx', 'markers', 11);
               elseif abs(tdiff_expected) > ttol
                 % unexpected beat
@@ -169,7 +159,7 @@ for ii = length(window):length(signal)
                   late_beats(:, late_count) = [new_peak; rcount];
                   prev_possible_time = prev_possible_peak(2, 1);
                   tdiff_possible = prev_possible_time - expected_time;
-                  fprintf('Late beat at %d, expected %d\n', new_time, expected_time);
+                  fprintf('Late beat at %8.2f, expected %8.2f\n', new_time, expected_time);
                   
                   if abs(tdiff_possible) <= ttol
                     % add beat that was skipped
@@ -180,7 +170,7 @@ for ii = length(window):length(signal)
                     rcount = rcount + 1;
                     late_beats(3, late_count) = rcount;
                     plot(new_peak(2), new_peak(1), 'ko', 'markers', 11);
-                    fprintf('Added beat at %d\n', added_beats(2, added_count));
+                    fprintf('Added beat at %8.2f\n', added_beats(2, added_count));
                     unexpected_flags = shift(unexpected_flags, 0);
                   else
                     % actual late beat
@@ -193,7 +183,7 @@ for ii = length(window):length(signal)
                   early_count = early_count + 1;
                   early_beats(:, early_count) = [new_peak; rcount];
                   unexpected_flags = shift(unexpected_flags, 1);
-                  fprintf('Early beat at %d, expected %d\n', new_time, expected_time);
+                  fprintf('Early beat at %8.2f, expected %8.2f\n', new_time, expected_time);
                   plot(expected_peak(2, :), expected_peak(1, :), 'co', 'markers', 11);
                 end
                 
@@ -216,7 +206,7 @@ for ii = length(window):length(signal)
             avg_volt = mean(rpeaks(1, rindex:rcount));
             avg_diff = mean(diff(rpeaks(2, rindex:rcount)));
             prev_expected_peak = expected_peak;
-            expected_peak = [avg_volt; round(avg_diff + rpeaks(2, rcount))];
+            expected_peak = [avg_volt; avg_diff + rpeaks(2, rcount)];
             
           end % end check definite R peak
          prev_possible_peak = possible_peak;
@@ -278,11 +268,16 @@ else
 end
 
 %{
-disp(rpeaks(2,:));
+disp(rpeaks);
 disp(early_beats);
 disp(late_beats);
 disp(removed_beats);
 disp(added_beats);
 %}
+
+xlabel('Time (ms)');
+ylabel('Voltage (mv)');
+t = sprintf('Electrocardiogram Analysis %s', patient);
+title(t);
 
 end
