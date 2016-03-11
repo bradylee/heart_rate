@@ -11,6 +11,7 @@ patient = 'mitdb/104';
 [tstamps, signal, fs] = rdsamp(patient, 1, 100000);
 signal = signal';
 tstamps = tstamps' * 1000;
+disp(tstamps(1));
 
 %%{
 range = [125, 175];

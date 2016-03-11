@@ -56,10 +56,10 @@ prev_possible_peak = [0; 0];
 unexpected_flags = zeros(1, alarm_count);
 
 UNEXPECTED_LENGTH = 10;
-early_beats = zeros(2, UNEXPECTED_LENGTH);
-late_beats = zeros(2, UNEXPECTED_LENGTH);
-removed_beats = zeros(2, UNEXPECTED_LENGTH);
-added_beats = zeros(2, UNEXPECTED_LENGTH);
+early_beats = zeros(3, UNEXPECTED_LENGTH);
+late_beats = zeros(3, UNEXPECTED_LENGTH);
+removed_beats = zeros(3, UNEXPECTED_LENGTH);
+added_beats = zeros(3, UNEXPECTED_LENGTH);
 
 early_count = 0;
 late_count = 0;
@@ -156,7 +156,7 @@ for ii = length(window):length(signal)
                 if tdiff_expected > 0
                   % late beat
                   late_count = late_count + 1;
-                  late_beats(:, late_count) = new_peak;
+                  late_beats(:, late_count) = [new_peak; rcount];
                   prev_possible_time = prev_possible_peak(2, 1);
                   tdiff_possible = prev_possible_time - expected_time;
                   fprintf('Late beat at %8.2f, expected %8.2f\n', new_time, expected_time);
@@ -164,10 +164,11 @@ for ii = length(window):length(signal)
                   if abs(tdiff_possible) <= ttol
                     % add beat that was skipped
                     added_count = added_count + 1;
-                    added_beats(:, added_count) = prev_possible_peak;
+                    added_beats(:, added_count) = [prev_possible_peak; rcount];
                     rpeaks(:, rcount + 1) = rpeaks(:, rcount);
                     rpeaks(:, rcount) = prev_possible_peak;
                     rcount = rcount + 1;
+                    late_beats(3, late_count) = rcount;
                     plot(new_peak(2), new_peak(1), 'ko', 'markers', 11);
                     fprintf('Added beat at %8.2f\n', added_beats(2, added_count));
                     unexpected_flags = shift(unexpected_flags, 0);
@@ -180,7 +181,7 @@ for ii = length(window):length(signal)
                   % early beat
                   early_event = 1;
                   early_count = early_count + 1;
-                  early_beats(:, early_count) = new_peak;
+                  early_beats(:, early_count) = [new_peak; rcount];
                   unexpected_flags = shift(unexpected_flags, 1);
                   fprintf('Early beat at %8.2f, expected %8.2f\n', new_time, expected_time);
                   plot(expected_peak(2, :), expected_peak(1, :), 'co', 'markers', 11);
@@ -240,23 +241,39 @@ if rcount > 0
   if early_count > 0
     early_beats = early_beats(:, 1:early_count);
     plot(early_beats(2, :), early_beats(1, :), 'c*');
+  else
+    early_beats = [];
   end
   if late_count > 0
     late_beats = late_beats(:, 1:late_count);
     plot(late_beats(2, :), late_beats(1, :), '*', 'Color', [1, 0.5, 0.5]);
+  else
+    late_beats = [];
   end
   if removed_count > 0
     removed_beats = removed_beats(:, 1:removed_count);
     plot(removed_beats(2, :), removed_beats(1, :), 'kx', 'markers', 11);
+  else
+    removed_beats = [];
   end
   if added_count > 0
     added_beats = added_beats(:, 1:added_count);
     plot(added_beats(2, :), added_beats(1, :), 'ro', 'markers', 11);
+  else
+    added_beats = [];
   end
   
 else
   rpeaks = [];
 end
+
+%{
+disp(rpeaks);
+disp(early_beats);
+disp(late_beats);
+disp(removed_beats);
+disp(added_beats);
+%}
 
 xlabel('Time (ms)');
 ylabel('Voltage (mv)');
