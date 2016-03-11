@@ -49,7 +49,7 @@ midmin = round(length(maxs)/2);
 
 % preallocate for 2 beats per second, faster execution
 %rpeaks = zeros(2, round(tstamps(end)) * 2);
-rpeaks = zeros(2, length(signal) * fs * 2);
+rpeaks = zeros(2, round(length(signal) * fs * 2));
 rcount = 0;
 
 rindex = 1;
