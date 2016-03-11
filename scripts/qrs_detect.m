@@ -3,7 +3,7 @@
 % * reorganize to smaller functions
 % * prev expected buffer - allow adding and removing to check back farther
 
-function [rpeaks, late_beats, early_beats, added_beats, removed_beats] = qrs_detect(signal, fs, vtol, ttol, vscale, win_size, alarm_count, patient)
+function [rpeaks, late_beats, early_beats, added_beats, removed_beats] = qrs_detect(signal, fs, vtol, ttol, vscale, win_size, alarm_count, patient, plot_en)
 
 % signal			: array of samples (millivolts)
 % //tstamps			: timestamps corresponding to samples (milliseconds)
@@ -27,14 +27,15 @@ samples = 1:length(signal);
 % adjust ttol to samples
 ttol = max(1, ttol / 1000 * fs);
 
-close all;
-figure; hold on;
-%plot(tstamps, signal);
-plot(samples, signal);
-xlabel('Sample');
-ylabel('Voltage (mv)');
-t = sprintf('Electrocardiogram Analysis %s', patient);
-title(t);
+if plot_en
+	close all;
+	figure; hold on;
+	plot(samples, signal);
+	xlabel('Sample');
+	ylabel('Voltage (mv)');
+	t = sprintf('Electrocardiogram Analysis %s', patient);
+	title(t);
+end;
 
 % must be >= 3 samples to find peaks
 win_len = max(3, round(fs * win_size / 1000));
@@ -99,7 +100,9 @@ for ii = length(window):length(signal)
       
       [maxs, out] = shift(maxs, point);
       % plot max removed from buffer
-      plot(out(2), out(1), 'go');
+			if plot_en
+				plot(out(2), out(1), 'go');
+			end
       
       found_min = 0;
       found_max = 1;
@@ -131,7 +134,9 @@ for ii = length(window):length(signal)
             
             if curr_count > 2
               % check detected value against expectation
-              plot(expected_peak(2), expected_peak(1), 'm*');
+							if plot_en
+								plot(expected_peak(2), expected_peak(1), 'm*');
+							end;
               new_time = new_peak(2, 1);
               expected_time = expected_peak(2, 1);
               prev_time = prev_expected_peak(2, 1);
@@ -161,7 +166,9 @@ for ii = length(window):length(signal)
                 unexpected_flags = shift(unexpected_flags, 0);
                 early_event = 0;
                 fprintf('Removed beat at %d\n', removed_beat(2, 1));
-                plot(expected_peak(2), expected_peak(1), 'kx', 'markers', 11);
+								if plot_en
+									plot(expected_peak(2), expected_peak(1), 'kx', 'markers', 11);
+								end
               elseif abs(tdiff_expected) > ttol
                 % unexpected beat
                 if tdiff_expected > 0
@@ -180,7 +187,9 @@ for ii = length(window):length(signal)
                     rpeaks(:, rcount) = prev_possible_peak;
                     rcount = rcount + 1;
                     late_beats(3, late_count) = rcount;
-                    plot(new_peak(2), new_peak(1), 'ko', 'markers', 11);
+										if plot_en
+											plot(new_peak(2), new_peak(1), 'ko', 'markers', 11);
+										end;
                     fprintf('Added beat at %d\n', added_beats(2, added_count));
                     unexpected_flags = shift(unexpected_flags, 0);
                   else
@@ -195,7 +204,9 @@ for ii = length(window):length(signal)
                   early_beats(:, early_count) = [new_peak; rcount];
                   unexpected_flags = shift(unexpected_flags, 1);
                   fprintf('Early beat at %d, expected %d\n', new_time, expected_time);
-                  plot(expected_peak(2, :), expected_peak(1, :), 'co', 'markers', 11);
+									if plot_en
+										plot(expected_peak(2, :), expected_peak(1, :), 'co', 'markers', 11);
+									end
                 end
                 
                 %{
@@ -233,7 +244,9 @@ for ii = length(window):length(signal)
     if found_max
       % valid minimum
       [mins, out] = shift(mins, point);
-      plot(out(2), out(1), 'yo');
+			if plot_en
+				plot(out(2), out(1), 'yo');
+			end;
       found_min = 1;
       found_max = 0;
     elseif point(1) < mins(1, 1)
@@ -246,30 +259,40 @@ end
 if rcount > 0
   % adjust array and plot
   rpeaks = rpeaks(:, 1:rcount);
-  plot(rpeaks(2, :), rpeaks(1, :), 'ro');
+	if plot_en
+		plot(rpeaks(2, :), rpeaks(1, :), 'ro');
+	end;
   disp(rcount);
   
   if early_count > 0
     early_beats = early_beats(:, 1:early_count);
-    plot(early_beats(2, :), early_beats(1, :), 'c*');
+		if plot_en
+			plot(early_beats(2, :), early_beats(1, :), 'c*');
+		end;
   else
     early_beats = [];
   end
   if late_count > 0
     late_beats = late_beats(:, 1:late_count);
-    plot(late_beats(2, :), late_beats(1, :), '*', 'Color', [1, 0.5, 0.5]);
+		if plot_en
+			plot(late_beats(2, :), late_beats(1, :), '*', 'Color', [1, 0.5, 0.5]);
+		end
   else
     late_beats = [];
   end
   if removed_count > 0
     removed_beats = removed_beats(:, 1:removed_count);
-    plot(removed_beats(2, :), removed_beats(1, :), 'kx', 'markers', 11);
+		if plot_en
+			plot(removed_beats(2, :), removed_beats(1, :), 'kx', 'markers', 11);
+		end
   else
     removed_beats = [];
   end
   if added_count > 0
     added_beats = added_beats(:, 1:added_count);
-    plot(added_beats(2, :), added_beats(1, :), 'ro', 'markers', 11);
+		if plot_en
+			plot(added_beats(2, :), added_beats(1, :), 'ro', 'markers', 11);
+		end
   else
     added_beats = [];
   end

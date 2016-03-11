@@ -1,7 +1,7 @@
-function [ avg, inst ] = peaks_to_bpm( rpeaks )
+function [ avg, inst ] = peaks_to_bpm( rpeaks, fs )
 
-rpeaks = rpeaks(2, :);
-d = diff(rpeaks);
+% rpeaks: row 1 signal (millivolts), row 2 samples
+d = diff(rpeaks(2, :)) ./ fs;
 inst = 60 ./ d;
 avg = 60 / mean(d);
 
