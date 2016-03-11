@@ -1,41 +1,35 @@
 library ieee;
-use ieee._std_1164.all;
+use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
 use work.constants.all;
 
 entity qrs_detect is
-	generic
-	(
-		fs in : natural,
-		vtol in : integer,
-		ttol in : integer
-	);
 	port 
 	(
-		clk : in std_logic,
-		reset : in std_logic,
-		adc_din : in std_logic_vector(ADC_WIDTH - 1 downto 0),
-		sample_din : in std_logic_vector(SAMPLE_WIDTH - 1 downto 0),
-		adc_empty : in std_logic,
-		sample_empty: in std_logic,
-		rpeak_full : in std_logic,
-		early_full : in std_logic,
-		removed_full : in std_logic,
-		late_full : in std_logic,
-		added_full : in std_logic,
+		clk : in std_logic;
+		reset : in std_logic;
+		adc_din : in std_logic_vector(ADC_WIDTH - 1 downto 0);
+		sample_din : in std_logic_vector(SAMPLE_WIDTH - 1 downto 0);
+		adc_empty : in std_logic;
+		sample_empty: in std_logic;
+		rpeak_full : in std_logic;
+		early_full : in std_logic;
+		removed_full : in std_logic;
+		late_full : in std_logic;
+		added_full : in std_logic;
 		adc_rd_en : out std_logic;
 		sample_rd_en : out std_logic;
-		rpeak_dout : out std_logic_vector(SAMPLE_WIDTH - 1 downto 0),
-		early_dout : out std_logic_vector(SAMPLE_WIDTH - 1 downto 0),
-		removed_dout : out std_logic_vector(SAMPLE_WIDTH - 1 downto 0),
-		late_dout : out std_logic_vector(SAMPLE_WIDTH - 1 downto 0),
-		added_dout : out std_logic_vector(SAMPLE_WIDTH - 1 downto 0),
-		rpeak_wr_en : out std_logic,
-		early_wr_en : out std_logic,
-		removed_wr_en : out std_logic,
-		late_wr_en : out std_logic,
-		added_wr_en : out std_logic,
-		alert : out std_logic,
+		rpeak_dout : out std_logic_vector(SAMPLE_WIDTH - 1 downto 0);
+		early_dout : out std_logic_vector(SAMPLE_WIDTH - 1 downto 0);
+		removed_dout : out std_logic_vector(SAMPLE_WIDTH - 1 downto 0);
+		late_dout : out std_logic_vector(SAMPLE_WIDTH - 1 downto 0);
+		added_dout : out std_logic_vector(SAMPLE_WIDTH - 1 downto 0);
+		rpeak_wr_en : out std_logic;
+		early_wr_en : out std_logic;
+		removed_wr_en : out std_logic;
+		late_wr_en : out std_logic;
+		added_wr_en : out std_logic;
+		alert : out std_logic;
 		sample_average : out std_logic_vector(SAMPLE_WIDTH - 1 downto 0);
 	);
 end entity;
@@ -274,7 +268,7 @@ begin
 						-- curdiff = (2 * curmax - prevmin - nextmin) / 2
 						curr_diff := std_logic_vector(shift_right(shift_left(unsigned(curr_max), 1) - unsigned(prev_min) - unsigned(next_min), 1));
 
-						if (unsigned(curr_diff) >= vtol) then
+						if (unsigned(curr_diff) >= VTOL) then
 							prev_diff := std_logic_vector(unsigned(prev_max) - unsigned(prev_min));
 							prev_diff := std_logic_vector(shift_left(unsigned(prev_diff), VSCALE_SHIFT));
 							next_diff := std_logic_vector(unsigned(next_max) - unsigned(next_min));
@@ -372,9 +366,9 @@ begin
 					early_event_c <= '0';
 					next_state <= full;
 
-					if (early_event = '1' and abs(signed(prev_expect_diff)) <= ttol) then 
+					if (early_event = '1' and abs(signed(prev_expect_diff)) <= TTOL) then 
 						return_state <= remove;
-					elsif (abs(signed(expect_diff)) > ttol) then 
+					elsif (abs(signed(expect_diff)) > TTOL) then 
 						if (signed(expect_diff) > 0) then
 							return_state <= late;
 						else
@@ -403,7 +397,7 @@ begin
 			when late =>
 				SHIFT_SAMPLE_BUFF(late_buff, new_peak, late_buff_c);
 				possible_diff := std_logic_vector(signed(new_peak) - signed(possible_peak));
-				if (abs(signed(possible_diff)) <= ttol) then
+				if (abs(signed(possible_diff)) <= TTOL) then
 					-- insert new peak
 					SHIFT_SAMPLE_BUFF(added_buff, possible_peak, added_buff_c);
 					VSHIFT_SAMPLE_BUFF(rpeak_buff, possible_peak, rpeak_buff_v);
@@ -477,7 +471,7 @@ begin
 		end case;
 	end process;
 
-	clock_process : process (clock, reset)
+	clock_process : process (clk, reset)
 	begin
 		if (reset = '1') then
 			state <= init;
@@ -513,7 +507,7 @@ begin
 			late_o <= (others => '0');  
 			added_o <= (others => '0');  
 			alert_o <= '0'; 
-		elsif (rising_edge(clock)) then
+		elsif (rising_edge(clk)) then
 			state <= next_state;
 			return_state <= return_state_c;
 			maxs_adc <= maxs_adc_c;
