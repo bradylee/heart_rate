@@ -1,1 +1,16 @@
 *.m~
+*.zip
+work/
+db/
+incremental_db/
+output_files/
+**/simulation/modelsim/
+**/simulation/work/
+transcript
+*.swp
+*.swo
+*.wlf
+*.qsf
+*.qpf
+*.qws
+
