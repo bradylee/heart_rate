@@ -3,10 +3,10 @@
 % * reorganize to smaller functions
 % * prev expected buffer - allow adding and removing to check back farther
 
-function [rpeaks, late_beats, early_beats, added_beats, removed_beats] = qrs_detect(signal, tstamps, fs, vtol, ttol, vscale, win_size, alarm_count, patient)
+function [rpeaks, late_beats, early_beats, added_beats, removed_beats] = qrs_detect(signal, fs, vtol, ttol, vscale, win_size, alarm_count, patient)
 
 % signal			: array of samples (millivolts)
-% tstamps			: timestamps corresponding to samples (milliseconds)
+% //tstamps			: timestamps corresponding to samples (milliseconds)
 % fs					: sampling frequency (hertz)
 % vtol				: tolerance allowed to help differentiate R peaks from other peaks (millivolts)
 % ttol				: tolerance allowed before considering a beat missed (milliseconds)
@@ -20,10 +20,10 @@ PEAK_BUFF_SIZE = 3;
 
 if size(signal, 1) > size(signal,2)
   signal = signal';
-  tstamps = tstamps';
+  %tstamps = tstamps';
 end
 
-samples = 1:length(tstamps);
+samples = 1:length(signal);
 % adjust ttol to samples
 ttol = max(1, ttol / 1000 * fs);
 
@@ -48,7 +48,8 @@ midmax = round(length(maxs)/2);
 midmin = round(length(maxs)/2);
 
 % preallocate for 2 beats per second, faster execution
-rpeaks = zeros(2, round(tstamps(end)) * 2);
+%rpeaks = zeros(2, round(tstamps(end)) * 2);
+rpeaks = zeros(2, length(signal) * fs * 2);
 rcount = 0;
 
 rindex = 1;
